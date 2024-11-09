@@ -36,7 +36,7 @@ mongoose
 connectDB();
 app.use("/api/messages", messageRoutes);
 app.use("/api/auth", authRoutes);
-app.use("/api", userRoutes); // User routes
+app.use("/api", userRoutes);
 
 io.on("connection", (socket) => {
   const token = socket.handshake.query.token;
@@ -47,16 +47,14 @@ io.on("connection", (socket) => {
   }
 
   try {
-    // Verify the token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.userId;
 
-    // Store the userId in the socket instance
     socket.userId = userId;
     console.log("User connected:", userId);
 
     socket.on("sendMessage", async (messageData) => {
-      const { content } = messageData;
+      const { content, receiver } = messageData;
 
       if (!content) {
         console.error("Missing content in the message data");
@@ -64,14 +62,15 @@ io.on("connection", (socket) => {
       }
 
       try {
-        // Create and save the message
         const newMessage = new Message({
           content,
-          user: socket.userId, // Use the validated userId from the socket
+          sender: socket.userId,
+          receiver,
         });
 
         const savedMessage = await newMessage.save();
-        await savedMessage.populate("user", "username");
+        await savedMessage.populate("sender", "username");
+        await savedMessage.populate("receiver", "username");
 
         io.emit("receiveMessage", savedMessage);
       } catch (error) {
@@ -88,7 +87,6 @@ io.on("connection", (socket) => {
   }
 });
 
-// Start the server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
